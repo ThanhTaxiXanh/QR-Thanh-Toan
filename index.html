@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>QR Thanh Toán</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<!-- For production, self-host these scripts (see README) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+:root{--bg:#F5F5F7;--card:#fff;--fg:#171717;--mut:#6B6B6B;--bd:#E5E5E5;--ok:#16803C;--err:#D92D20;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f0f10;--card:#1b1b1d;--fg:#f2f2f3;--mut:#9a9aa0;--bd:#2c2c30}}
+:root[data-theme="dark"]{--bg:#0f0f10;--card:#1b1b1d;--fg:#f2f2f3;--mut:#9a9aa0;--bd:#2c2c30}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 -apple-system,"SF Pro Text","Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1000px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0 2px}.sub{color:var(--mut);margin:0 0 16px;font-size:14px}
+.grid{display:grid;gap:16px}
+@media(min-width:900px){.grid{grid-template-columns:1fr 1fr;align-items:start}#preview{order:2;position:sticky;top:16px}}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:20px}
+#preview{text-align:center;order:-1}
+@media(min-width:900px){#preview{order:2}}
+#pv-bank{font-size:20px;font-weight:700}#pv-acc{font-size:30px;font-weight:700;letter-spacing:.02em;word-break:break-all}
+#pv-name{color:var(--mut);min-height:1.4em}
+#qr{width:min(100%,280px);aspect-ratio:1;margin:14px auto;background:#fff;border:1px solid var(--bd);border-radius:12px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+#qr svg{width:100%;height:100%;display:block;shape-rendering:crispEdges}
+#qr p{color:#6B6B6B;padding:16px;margin:0;font-size:15px}
+#pv-amt{font-size:32px;font-weight:800}#pv-info{font-weight:600;word-break:break-word}
+label{display:block;font-weight:600;font-size:14px;margin:14px 0 6px}
+input,.sel{width:100%;font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px 14px;min-height:48px;text-align:left}
+.sel{display:flex;justify-content:space-between;cursor:pointer}
+.row{position:relative}.row .suf{position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--mut)}
+:focus-visible{outline:3px solid #2563eb;outline-offset:2px}
+.err{color:var(--err);font-size:13px;min-height:1em;margin-top:4px}.hint{color:var(--mut);font-size:13px;margin-top:4px}
+.btns{display:flex;gap:10px;margin-top:18px}
+button{font:inherit;cursor:pointer}
+.btn{flex:1;min-height:48px;border-radius:12px;border:1px solid var(--bd);background:var(--card);color:var(--fg);font-weight:600;padding:0 14px}
+.btn.pri{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.link{background:none;border:0;color:var(--mut);text-decoration:underline;padding:8px 0;font-size:14px}
+.item{display:flex;gap:10px;justify-content:space-between;align-items:center;border-top:1px solid var(--bd);padding:10px 0}
+.item:first-child{border-top:0}.item b{display:block}.item small{color:var(--mut);display:block}
+.item .acts{display:flex;gap:6px}.item .acts button{border:1px solid var(--bd);background:var(--card);color:var(--fg);border-radius:10px;padding:8px 10px;min-height:40px}
+h2{font-size:17px;margin:0 0 6px}
+dialog{border:0;border-radius:20px;padding:20px;background:var(--card);color:var(--fg);width:min(92vw,420px);max-height:80vh}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+#banklist{max-height:50vh;overflow:auto;margin-top:8px}
+.bk{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:0;color:var(--fg);padding:10px 4px;min-height:48px;border-bottom:1px solid var(--bd)}
+.bdg{width:34px;height:34px;border-radius:50%;background:var(--bg);display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+.grp{color:var(--mut);font-size:13px;margin:10px 0 2px}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;max-width:90vw;display:none;z-index:9}
+pre{white-space:pre-wrap;word-break:break-all;font-size:12px;background:var(--bg);padding:10px;border-radius:10px}
+.priv{color:var(--mut);font-size:13px;margin:16px 4px}
+
+.st{font-size:14px;font-weight:600}.st[data-s=CONNECTED],.st[data-s=DISPLAYING]{color:var(--ok)}.st[data-s=DISCONNECTED],.st[data-s=ERROR],.st[data-s=SESSION_EXPIRED],.st[data-s=EXPIRED]{color:var(--err)}
+.role{display:block;width:100%;text-align:left;margin:0 0 12px;padding:24px;border-radius:20px;border:1px solid var(--bd);background:var(--card);color:var(--fg)}
+.role b{display:block;font-size:20px}.role span{color:var(--mut);font-size:14px}
+.qrbox{width:min(70vw,300px);aspect-ratio:1;background:#fff;border-radius:12px;margin:12px auto;overflow:hidden}.qrbox svg{width:100%;height:100%;display:block;shape-rendering:crispEdges}
+#disp{min-height:100dvh;display:grid;place-items:center;text-align:center;padding:16px}#disp[hidden]{display:none}
+#dcode{font-size:clamp(22px,6vw,44px);font-weight:800;letter-spacing:.06em;word-break:break-all}
+#dshow{position:fixed;inset:0;display:grid;grid-template-areas:"t" "q" "b";align-content:center;justify-items:center;gap:1.4dvh;text-align:center;overflow:hidden;background:var(--bg);padding:calc(12px + env(safe-area-inset-top,0px)) calc(12px + env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) calc(12px + env(safe-area-inset-left,0px))}
+#dshow[hidden]{display:none}#dtop{grid-area:t}#dq{grid-area:q}#dbot{grid-area:b}
+#dq{width:min(72vw,52dvh);aspect-ratio:1;background:#fff;border-radius:12px;display:flex;align-items:center;justify-content:center;transition:opacity .12s;overflow:hidden}
+#dq svg{width:100%;height:100%;display:block;shape-rendering:crispEdges}#dq p{color:#333;margin:0;padding:12px}
+#dbank{font-size:min(6vw,3.6dvh);font-weight:700}#dacc{font-size:min(10vw,7dvh);font-weight:800;letter-spacing:.03em}#dname{color:var(--mut);font-size:min(5vw,3dvh)}
+#damt{font-size:min(12vw,9dvh);font-weight:800}#dinfo{font-size:min(5.5vw,3.4dvh);font-weight:600;word-break:break-word}#derr{color:var(--err);font-weight:600}
+#dctl{position:absolute;top:calc(8px + env(safe-area-inset-top,0px));right:calc(8px + env(safe-area-inset-right,0px));display:flex;gap:10px;align-items:center}
+#ddev{position:absolute;left:0;bottom:0;max-width:60vw;text-align:left}
+@media(orientation:landscape){#dshow{grid-template-areas:"q t" "q b";grid-template-columns:auto minmax(0,1fr);grid-template-rows:1fr 1fr;align-content:stretch;align-items:center;gap:3vw}
+#dq{width:min(86dvh,46vw)}#dtop{align-self:end}#dbot{align-self:start}#dbank{font-size:min(3vw,5dvh)}#dacc{font-size:min(5vw,9dvh)}#damt{font-size:min(7vw,13dvh)}}
+</style>
+</head>
+<body>
+<section id="roles" class="wrap" hidden><h1>QR Thanh Toán</h1><p class="sub">Bạn muốn sử dụng thiết bị này như thế nào?</p>
+<button class="role" id="r-ctl" type="button"><b>iPhone / Máy điều khiển</b><span>Nhập số tiền, mã QR trên màn hình kia tự cập nhật</span></button>
+<button class="role" id="r-dsp" type="button"><b>Android / Màn hình hiển thị</b><span>Hiển thị mã QR lớn, tự động cập nhật</span></button>
+<div class="err" id="rcfg"></div></section>
+<section id="disp" hidden>
+<div id="dstart"><h1>QR Thanh Toán</h1><p class="sub">Màn hình hiển thị</p><button class="btn pri" id="dnew" type="button" style="padding:0 28px">Tạo phiên kết nối</button><div class="err" id="dmsg"></div></div>
+<div id="dpair" hidden><h2>Kết nối thiết bị điều khiển</h2><div class="hint" id="dpm"></div><div id="dcode"></div><div class="qrbox" id="pq"></div><p class="hint">Mở trên iPhone và quét mã này</p><button class="btn" id="dnew2" type="button" style="padding:0 20px">Phiên mới</button></div>
+<div id="dshow" hidden>
+<div id="dctl"><span class="st" id="dst" role="status" aria-live="polite">● Chưa kết nối</span><button class="btn" id="dfs" type="button" style="flex:none;min-height:40px">⛶ Toàn màn hình</button></div>
+<div id="dtop"><div id="dbank"></div><div id="dacc"></div><div id="dname"></div></div>
+<div id="dq" aria-live="polite"></div>
+<div id="dbot"><div id="damt"></div><div id="dinfo"></div><div id="derr" hidden>Không thể tạo mã QR. Vui lòng kiểm tra thông tin thanh toán</div><div class="hint" id="dhint" hidden>Hãy mở trang ở chế độ toàn màn hình của trình duyệt.</div></div>
+<pre id="ddev" hidden></pre></div></section>
+<main class="wrap" id="app" hidden>
+<h1>QR Thanh Toán</h1>
+<p class="sub">Tạo mã VietQR nhanh chóng ngay trên thiết bị của bạn.</p>
+<div class="card" style="margin-bottom:16px"><div class="st" data-s="IDLE" role="status" aria-live="polite">● Chưa kết nối</div><div class="hint" id="csess"></div>
+<div id="cjoin"><label for="code">Nhập mã kết nối</label><div class="btns" style="margin-top:0"><input id="code" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX"><button class="btn" id="cgo" type="button" style="flex:none">Kết nối</button></div></div>
+<div class="err" id="cmsg"></div><button class="btn" id="creplace" type="button" hidden>Thay thế thiết bị điều khiển</button></div>
+<div class="grid">
+<section id="preview" class="card" aria-live="polite">
+<div id="pv-bank">Chọn ngân hàng</div>
+<div id="pv-acc"></div>
+<div id="pv-name"></div>
+<div id="qr"></div>
+<div id="pv-amt"></div>
+<div id="pv-info"></div>
+</section>
+<section class="card">
+<label for="bankbtn">Ngân hàng</label>
+<button id="bankbtn" class="sel" type="button"><span>Chọn ngân hàng</span><span aria-hidden="true">›</span></button>
+<label for="acc">Số tài khoản</label>
+<input id="acc" inputmode="numeric" autocomplete="off" placeholder="Nhập số tài khoản" maxlength="19">
+<div class="err" id="e-acc"></div>
+<label for="name">Tên chủ tài khoản</label>
+<input id="name" autocomplete="off" placeholder="Nhập tên chủ tài khoản">
+<button class="link" id="lookup" type="button">Tra cứu tên tài khoản</button>
+<div class="hint" id="lookup-msg"></div>
+<label for="amt">Số tiền</label>
+<div class="row"><input id="amt" inputmode="decimal" autocomplete="off" placeholder="Nhập số tiền"><span class="suf">đ</span></div>
+<div class="err" id="e-amt"></div>
+<label for="info">Nội dung chuyển khoản</label>
+<input id="info" inputmode="text" autocomplete="off" placeholder="Ví dụ: THANH TOAN TIEN TAXI">
+<div class="hint"><span id="cnt">0/25</span> <span class="err" id="e-info" style="display:inline"></span></div>
+<div class="btns"><button class="btn" id="save" disabled>Lưu ảnh</button><button class="btn pri" id="share" disabled>Chia sẻ</button></div>
+<div class="btns"><button class="btn" id="saveacc" disabled>Lưu tài khoản</button><button class="btn" id="reset">Làm mới</button></div>
+<label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" id="dev" style="width:auto;min-height:0"> Developer Mode</label>
+<pre id="devout" hidden></pre>
+</section>
+</div>
+<section class="card" style="margin-top:16px"><h2>Tài khoản đã lưu</h2><div id="saved"><div class="hint">Chưa có tài khoản nào.</div></div></section>
+<section class="card" style="margin-top:16px"><h2>Lịch sử</h2><div id="hist"><div class="hint">Chưa có lịch sử.</div></div><button class="link" id="clearhist" type="button">Xóa lịch sử</button></section>
+<p class="priv">Thông tin tài khoản được xử lý và lưu trữ trên thiết bị. Ứng dụng không cần gửi thông tin tài khoản lên máy chủ để tạo mã QR.</p>
+</main>
+<dialog id="bankdlg"><h2>Chọn ngân hàng</h2><input id="bsearch" placeholder="Tìm ngân hàng..." aria-label="Tìm ngân hàng"><div id="banklist"></div><button class="btn" style="width:100%;margin-top:10px" id="bclose" type="button">Đóng</button></dialog>
+<dialog id="dlg"><form method="dialog"><h2 id="dt"></h2><div id="dm" class="hint"></div><input id="di" hidden><div class="btns"><button class="btn" value="no" id="dno">Hủy</button><button class="btn pri" value="yes" id="dok">OK</button></div></form></dialog>
+<div id="toast" role="status"></div>
+<script>
+"use strict";
+// ---------- Bank data (local; BINs are NAPAS bank identifiers) ----------
+const BANKS = [["MBBank","MB",970422],["Vietcombank","VCB",970436],["Techcombank","TCB",970407],["BIDV","BIDV",970418],["VietinBank","ICB",970415],
+["Agribank","VBA",970405],["ACB","ACB",970416],["VPBank","VPB",970432],["TPBank","TPB",970423],["Sacombank","STB",970403],["HDBank","HDB",970437],
+["VIB","VIB",970441],["SHB","SHB",970443],["MSB","MSB",970426],["OCB","OCB",970448],["SeABank","SEAB",970440],["Eximbank","EIB",970431],
+["LPBank","LPB",970449],["Nam A Bank","NAB",970428],["ABBANK","ABB",970425],["Bac A Bank","BAB",970409],["PVcomBank","PVCB",970412],
+["NCB","NCB",970419],["SCB","SCB",970429],["Saigon Bank","SGB",970400],["VietBank","VBB",970433],["Kienlongbank","KLB",970452],
+["Shinhan Bank","SHBVN",970424],["Woori Bank","WOO",970457],["Cake","CAKE",546034],["Timo","TIMO",963388],["Ubank","UBANK",546035]]
+.map(([name,code,bin])=>({id:code,name,code,bin:String(bin)}));
+const FAV = ["MB","VCB","TCB","BIDV","ICB"];
+const $ = id => document.getElementById(id);
+
+// ---------- Text + payload (UI independent) ----------
+const stripVN = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/đ/g,"d").replace(/Đ/g,"D");
+/** Payload form of text: no diacritics, single spaces, uppercase. */
+const normalizeVietnameseText = s => stripVN(s).trim().replace(/\s+/g," ").toUpperCase();
+const fmtAmount = d => d.replace(/\B(?=(\d{3})+(?!\d))/g,".");
+const tlv = (id,v) => id + String(v.length).padStart(2,"0") + v;
+function crc16(str){ let c=0xFFFF; for(let i=0;i<str.length;i++){ c^=str.charCodeAt(i)<<8; for(let j=0;j<8;j++) c=(c&0x8000)?((c<<1)^0x1021)&0xFFFF:(c<<1)&0xFFFF; } return c.toString(16).toUpperCase().padStart(4,"0"); }
+/** Builds the NAPAS 247 VietQR (EMVCo) string. Amount null => static QR, number => dynamic QR. */
+function buildVietQRPayload({bank,accountNo,amount,addInfo}){
+  const member = tlv("00",bank.bin)+tlv("01",accountNo);
+  const merchant = tlv("00","A000000727")+tlv("01",member)+tlv("02","QRIBFTTA");
+  const p = tlv("00","01")+tlv("01",amount?"12":"11")+tlv("38",merchant)+tlv("53","704")
+    +(amount?tlv("54",String(amount)):"")+tlv("58","VN")+(addInfo?tlv("62",tlv("08",addInfo)):"")+"6304";
+  return p+crc16(p);
+}
+const state = {bank:null,accountNo:"",accountName:"",amountText:"",addInfo:""};
+function validateVietQRData(s){
+  const e = {}, info = normalizeVietnameseText(s.addInfo);
+  if(s.accountNo && !/^\d{6,19}$/.test(s.accountNo)) e.acc = "Số tài khoản chưa hợp lệ";
+  const amount = s.amountText ? Number(s.amountText) : null;
+  if(s.amountText && !(Number.isSafeInteger(amount) && amount>=1)) e.amt = "Số tiền không hợp lệ";
+  if(info.length>25) e.info = "Nội dung tối đa 25 ký tự.";
+  else if(!/^[A-Z0-9 .,\-]*$/.test(info)) e.info = "Nội dung chuyển khoản không hợp lệ";
+  return {errors:e, amount, info};
+}
+
+// ---------- QR encode + render ----------
+let lastQR = null;
+function encodeQR(payload){
+  const qr = qrcode(0,"M"); qr.addData(payload,"Byte"); qr.make();
+  const n = qr.getModuleCount(), m = [];
+  for(let r=0;r<n;r++){ m.push([]); for(let c=0;c<n;c++) m[r].push(qr.isDark(r,c)); }
+  return {n,m,version:(n-17)/4};
+}
+function qrSVG({n,m}){ // 4-module quiet zone, square black modules on white
+  let d = ""; for(let r=0;r<n;r++) for(let c=0;c<n;c++) if(m[r][c]) d += `M${c+4} ${r+4}h1v1h-1z`;
+  const t = n+8;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${t} ${t}" role="img" aria-label="Mã VietQR"><rect width="${t}" height="${t}" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}
+
+// ---------- Render ----------
+function update(){
+  const v = validateVietQRData(state), {errors:e} = v, b = state.bank;
+  $("e-acc").textContent = e.acc||""; $("e-amt").textContent = e.amt||""; $("e-info").textContent = e.info||"";
+  $("cnt").textContent = `${v.info.length}/25`;
+  $("pv-bank").textContent = b ? b.name : "Chọn ngân hàng";
+  $("pv-acc").textContent = state.accountNo;
+  $("pv-name").textContent = state.accountName.trim();
+  $("bankbtn").firstElementChild.textContent = b ? b.name+"  ✓" : "Chọn ngân hàng";
+  let msg = !b ? "Chọn ngân hàng để tạo mã QR" : !state.accountNo ? "Nhập số tài khoản để tạo mã QR" : (e.acc||e.amt||e.info||"");
+  lastQR = null;
+  if(!msg){
+    try{
+      const payload = buildVietQRPayload({bank:b,accountNo:state.accountNo,amount:v.amount,addInfo:v.info});
+      lastQR = {payload,...encodeQR(payload),amount:v.amount,info:v.info};
+      $("qr").innerHTML = qrSVG(lastQR);
+    }catch(_){ msg = "Không thể tạo mã QR. Vui lòng kiểm tra lại thông tin."; }
+  }
+  if(msg) $("qr").innerHTML = `<p>${msg}</p>`;
+  $("pv-amt").textContent = lastQR && v.amount ? fmtAmount(String(v.amount))+"đ" : "";
+  $("pv-info").textContent = lastQR ? v.info : "";
+  $("save").disabled = $("share").disabled = !lastQR;
+  $("saveacc").disabled = !(b && /^\d{6,19}$/.test(state.accountNo));
+  if($("dev").checked) $("devout").textContent = lastQR
+    ? `ROLE: ${rt.role||"LOCAL"}
+SESSION: ${rt.sid||"-"}
+CONNECTION: ${rt.state} (firebase ${rt.online?"online":"offline"})
+LAST SYNC: ${rt.lastSync?rt.lastSync.toISOString().slice(11,23):"-"}
+BIN: ${b.bin}\nAccount: ${state.accountNo}\nName: ${normalizeVietnameseText(state.accountName)}\nAmount: ${v.amount??"-"}\nInfo: ${v.info||"-"}\nQR version: ${lastQR.version}  EC level: M\nCRC: ${lastQR.payload.slice(-4)}\nPayload:\n${lastQR.payload}` : "Chưa có mã QR hợp lệ.";
+  scheduleSync();
+}
+
+// ---------- Dialog / toast helpers (no alert/confirm: they can be blocked) ----------
+function ask(title,message,withInput,def,okT,noT,force){
+  return new Promise(res=>{
+    $("dt").textContent = title; $("dm").textContent = message||""; const i=$("di"); i.hidden=!withInput; i.value=def||""; $("dok").textContent=okT||"OK"; $("dno").textContent=noT||"Hủy";
+    const d=$("dlg"); d.oncancel=force?e=>e.preventDefault():null; d.onclose=()=>res(d.returnValue==="yes"?(withInput?i.value.trim():true):null); d.showModal();
+  });
+}
+let tt; function toast(t){ const el=$("toast"); el.textContent=t; el.style.display="block"; clearTimeout(tt); tt=setTimeout(()=>el.style.display="none",3500); }
+
+// ---------- IndexedDB ----------
+const dbp = new Promise(res=>{
+  try{ const r=indexedDB.open("VietQRAppDB",1);
+    r.onupgradeneeded=()=>["settings","banks","savedAccounts","history"].forEach(n=>r.result.createObjectStore(n,{keyPath:"id"}));
+    r.onsuccess=()=>res(r.result); r.onerror=()=>res(null);
+  }catch(_){ res(null); }
+});
+async function dbop(store,mode,fn){
+  const db = await dbp; if(!db) throw new Error("no-db");
+  return new Promise((res,rej)=>{ const t=db.transaction(store,mode), s=t.objectStore(store), q=fn(s);
+    t.oncomplete=()=>res(q&&q.result); t.onerror=t.onabort=()=>rej(t.error); });
+}
+const dbAll = async s => { try{ return (await dbop(s,"readonly",o=>o.getAll()))||[]; }catch(_){ return []; } };
+const dbPut = (s,v) => dbop(s,"readwrite",o=>o.put(v));
+const dbDel = (s,id) => dbop(s,"readwrite",o=>o.delete(id));
+
+const bankByBin = bin => BANKS.find(b=>b.bin===bin);
+function loadInto(x){
+  state.bank = bankByBin(x.bankBin)||null; state.accountNo = x.accountNo; state.accountName = x.accountName||"";
+  state.amountText = x.amount?String(x.amount):""; state.addInfo = x.addInfo||"";
+  $("acc").value=state.accountNo; $("name").value=state.accountName; $("amt").value=fmtAmount(state.amountText); $("info").value=state.addInfo;
+  update(); scrollTo({top:0,behavior:"smooth"});
+}
+function row(title,l2,l3,onOpen,onDel,openLabel){
+  const d=document.createElement("div"); d.className="item";
+  const t=document.createElement("div"); const b=document.createElement("b"); b.textContent=title; t.append(b);
+  [l2,l3].filter(Boolean).forEach(s=>{ const sm=document.createElement("small"); sm.textContent=s; t.append(sm); });
+  const a=document.createElement("div"); a.className="acts";
+  const o=document.createElement("button"); o.textContent=openLabel; o.onclick=onOpen;
+  const x=document.createElement("button"); x.textContent="Xóa"; x.onclick=onDel; a.append(o,x); d.append(t,a); return d;
+}
+async function renderLists(){
+  const saved=(await dbAll("savedAccounts")).sort((a,b)=>b.updatedAt-a.updatedAt);
+  const sEl=$("saved"); sEl.replaceChildren(...(saved.length?saved.map(s=>row(s.nickname,s.bankName,s.accountNo,()=>loadInto(s),async()=>{
+    if(await ask("Xóa tài khoản này?","")){ await dbDel("savedAccounts",s.id).catch(()=>{}); renderLists(); } },"Mở")):[Object.assign(document.createElement("div"),{className:"hint",textContent:"Chưa có tài khoản nào."})]));
+  const hist=(await dbAll("history")).sort((a,b)=>b.createdAt-a.createdAt);
+  $("hist").replaceChildren(...(hist.length?hist.map(h=>row(h.bankName+" · "+h.accountNo,h.amount?fmtAmount(String(h.amount))+"đ":"",h.addInfo,()=>loadInto(h),async()=>{
+    await dbDel("history",h.id).catch(()=>{}); renderLists(); },"Mở lại")):[Object.assign(document.createElement("div"),{className:"hint",textContent:"Chưa có lịch sử."})]));
+}
+async function addHistory(){
+  if(!lastQR) return;
+  const b=state.bank, id=`${b.bin}-${state.accountNo}-${lastQR.amount||0}-${lastQR.info}`;
+  try{
+    await dbPut("history",{id,bankId:b.id,bankName:b.name,bankBin:b.bin,accountNo:state.accountNo,accountName:state.accountName.trim(),amount:lastQR.amount,addInfo:lastQR.info,createdAt:Date.now()});
+    const all=(await dbAll("history")).sort((a,c)=>c.createdAt-a.createdAt);
+    for(const h of all.slice(50)) await dbDel("history",h.id);
+    renderLists();
+  }catch(_){}
+}
+
+// ---------- PNG export ----------
+function cardBlob(){
+  const W=1800,H=2250,c=document.createElement("canvas"); c.width=W; c.height=H;
+  const g=c.getContext("2d"), q=lastQR, F='-apple-system,"Segoe UI",Roboto,sans-serif';
+  g.fillStyle="#F5F5F7"; g.fillRect(0,0,W,H);
+  g.fillStyle="#fff"; g.beginPath(); g.roundRect(90,90,W-180,H-180,64); g.fill();
+  g.textAlign="center"; g.textBaseline="alphabetic";
+  const T=(s,y,sz,w,col)=>{ g.font=`${w} ${sz}px ${F}`; g.fillStyle=col; let z=sz; while(g.measureText(s).width>W-300&&z>30){ z-=4; g.font=`${w} ${z}px ${F}`; } g.fillText(s,W/2,y); };
+  T(state.bank.name,300,96,700,"#171717"); T(state.accountNo,450,150,700,"#171717");
+  if(state.accountName.trim()) T(state.accountName.trim(),550,56,400,"#6B6B6B");
+  const t=q.n+8, ms=Math.floor(1200/t), size=ms*t, x0=(W-size)/2, y0=640;
+  g.imageSmoothingEnabled=false; g.fillStyle="#fff"; g.fillRect(x0,y0,size,size);
+  g.strokeStyle="#E5E5E5"; g.lineWidth=4; g.strokeRect(x0-2,y0-2,size+4,size+4);
+  g.fillStyle="#000"; for(let r=0;r<q.n;r++) for(let k=0;k<q.n;k++) if(q.m[r][k]) g.fillRect(x0+(k+4)*ms,y0+(r+4)*ms,ms,ms);
+  let y=y0+size+170;
+  if(q.amount){ T(fmtAmount(String(q.amount))+"đ",y,140,800,"#171717"); y+=110; }
+  if(q.info) T(q.info,y,64,600,"#171717");
+  return new Promise(res=>c.toBlob(res,"image/png"));
+}
+const fileName = () => `VietQR-${state.bank.name}-${state.accountNo}${lastQR.amount?"-"+lastQR.amount:""}.png`.replace(/[^\w.\-]+/g,"_");
+function download(blob,name){ const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); }
+async function exportImage(share){
+  if(!lastQR) return;
+  try{
+    const blob=await cardBlob(), name=fileName();
+    if(share){
+      const f=new File([blob],name,{type:"image/png"});
+      if(navigator.canShare && navigator.canShare({files:[f]})){
+        try{ await navigator.share({title:"QR Thanh Toán",text:"Mã QR thanh toán",files:[f]}); addHistory(); }
+        catch(err){ if(err.name!=="AbortError") throw err; } return;
+      }
+      download(blob,name); toast("Thiết bị không hỗ trợ chia sẻ ảnh. Ảnh đã được tải xuống."); addHistory(); return;
+    }
+    download(blob,name); toast("Đã lưu ảnh."); addHistory();
+  }catch(_){ toast("Không thể tạo ảnh. Vui lòng thử lại."); }
+}
+
+// ---------- Bank sheet ----------
+function renderBanks(){
+  const q=normalizeVietnameseText($("bsearch").value), box=$("banklist"); box.replaceChildren();
+  const mk=b=>{ const el=document.createElement("button"); el.type="button"; el.className="bk";
+    const d=document.createElement("span"); d.className="bdg"; d.textContent=b.code.slice(0,3);
+    const n=document.createElement("span"); n.textContent=(FAV.includes(b.code)&&!q?"⭐ ":"")+b.name;
+    el.append(d,n); el.onclick=()=>{ state.bank=b; $("bankdlg").close(); update(); }; return el; };
+  const hit=BANKS.filter(b=>!q||normalizeVietnameseText(b.name+" "+b.code).includes(q));
+  const favs=q?[]:FAV.map(c=>BANKS.find(b=>b.code===c));
+  favs.forEach(b=>box.append(mk(b)));
+  if(favs.length){ const g=document.createElement("div"); g.className="grp"; g.textContent="Tất cả ngân hàng"; box.append(g); }
+  hit.forEach(b=>box.append(mk(b)));
+  if(!hit.length){ const g=document.createElement("div"); g.className="hint"; g.textContent="Không tìm thấy ngân hàng."; box.append(g); }
+}
+
+// ---------- Events ----------
+$("bankbtn").onclick=()=>{ $("bsearch").value=""; renderBanks(); $("bankdlg").showModal(); };
+$("bclose").onclick=()=>$("bankdlg").close();
+$("bsearch").oninput=renderBanks;
+$("acc").oninput=e=>{ const v=e.target.value.replace(/\D/g,""); e.target.value=v; state.accountNo=v; update(); };
+$("name").oninput=e=>{ state.accountName=e.target.value; update(); };
+$("info").oninput=e=>{ state.addInfo=e.target.value; update(); };
+$("amt").oninput=e=>{
+  const el=e.target, pos=el.selectionStart??el.value.length, before=el.value.slice(0,pos).replace(/\D/g,"").length;
+  const d=el.value.replace(/\D/g,"").replace(/^0+(?=\d)/,"").slice(0,13);
+  state.amountText=d; el.value=fmtAmount(d);
+  let c=0,i=0; for(;i<el.value.length&&c<before;i++) if(/\d/.test(el.value[i])) c++;
+  try{ el.setSelectionRange(i,i); }catch(_){}
+  update();
+};
+document.querySelectorAll("input:not([type=checkbox])").forEach(i=>i.addEventListener("focus",()=>setTimeout(()=>i.scrollIntoView({block:"center",behavior:"smooth"}),300)));
+$("lookup").onclick=()=>{ $("lookup-msg").textContent="Tra cứu trực tuyến chưa được cấu hình. Bạn có thể nhập tên tài khoản thủ công."; };
+$("save").onclick=()=>exportImage(false);
+$("share").onclick=()=>exportImage(true);
+$("dev").onchange=e=>{ $("devout").hidden=!e.target.checked; update(); };
+$("reset").onclick=async()=>{
+  if((state.bank||state.accountNo||state.accountName||state.amountText||state.addInfo) && !(await ask("Làm mới?","Các thông tin đã nhập sẽ bị xóa."))) return;
+  Object.assign(state,{bank:null,accountNo:"",accountName:"",amountText:"",addInfo:""});
+  ["acc","name","amt","info"].forEach(i=>$(i).value=""); update();
+};
+$("saveacc").onclick=async()=>{
+  const nick=await ask("Tên tài khoản đã lưu","",true,state.accountName.trim()||state.bank.name); if(nick===null) return;
+  const id=`${state.bank.bin}-${state.accountNo}`, now=Date.now();
+  try{
+    const old=(await dbAll("savedAccounts")).find(s=>s.id===id);
+    if(old && !(await ask("Tài khoản này đã được lưu.","Bạn có muốn cập nhật không?"))) return;
+    await dbPut("savedAccounts",{id,nickname:nick||state.bank.name,bankId:state.bank.id,bankBin:state.bank.bin,bankCode:state.bank.code,bankName:state.bank.name,
+      accountNo:state.accountNo,accountName:state.accountName.trim(),createdAt:old?old.createdAt:now,updatedAt:now});
+    toast("Đã lưu tài khoản."); renderLists();
+  }catch(_){ toast("Không thể lưu trên thiết bị này."); }
+};
+$("clearhist").onclick=async()=>{
+  if(!(await ask("Xóa lịch sử?","Toàn bộ lịch sử sẽ bị xóa."))) return;
+  for(const h of await dbAll("history")) await dbDel("history",h.id).catch(()=>{});
+  renderLists();
+};
+if(typeof qrcode!=="function") toast("Không tải được thư viện QR. Hãy kết nối Internet cho lần mở đầu tiên.");
+// ======== Realtime sync (Firebase Realtime Database) ========
+// Paste your Firebase web config here (see README.md) and publish database.rules.json.
+const firebaseConfig = {
+  apiKey: "AIzaSyBxESMdCPdXJgr0cgz1CRvD0cwbYkNaklA", authDomain: "qr-thanh-toan-68453.firebaseapp.com",
+  databaseURL: "https://qr-thanh-toan-68453-default-rtdb.asia-southeast1.firebasedatabase.app/", projectId: "qr-thanh-toan-68453", appId: "1:16401970194:web:b54fdf9d128fe834ae94cb"
+};
+const SESSION_TTL_MS = 30*60*1000, SYNC_DEBOUNCE_MS = 150, BEAT_MS = 60000;
+const fbConfigured = !Object.values(firebaseConfig).some(v=>String(v).startsWith("YOUR"));
+const rt = {uid:null,db:null,ref:null,sid:null,token:null,role:null,state:"IDLE",online:false,offset:0,lastSync:null,sent:0,inflight:0};
+const TS = () => firebase.database.ServerValue.TIMESTAMP;
+const ALPHA = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const rid = n => { let s=""; while(s.length<n) for(const b of crypto.getRandomValues(new Uint8Array(n))) if(b<252&&s.length<n) s+=ALPHA[b%36]; return s; };
+const LABEL = {IDLE:"Chưa kết nối",CONNECTING:"Đang kết nối...",CONNECTED:"Đã kết nối",SYNCING:"Đang đồng bộ...",DISCONNECTED:"Mất kết nối",SESSION_EXPIRED:"Phiên đã hết hạn",
+  ERROR:"Lỗi kết nối",WAITING_FOR_CONTROLLER:"Đang chờ iPhone kết nối...",DISPLAYING:"Đã kết nối",EXPIRED:"Phiên đã hết hạn"};
+function setState(s){
+  rt.state=s;
+  const t=(s==="DISCONNECTED"?"⚠ ":"● ")+(rt.role==="display"&&s==="DISCONNECTED"?"Đang chờ kết nối lại":LABEL[s]);
+  document.querySelectorAll(".st").forEach(e=>{ e.textContent=t; e.dataset.s=s; });
+}
+const saveSess = () => sessionStorage.setItem("qrt-sess",JSON.stringify({role:rt.role,sid:rt.sid,token:rt.token}));
+const show = w => ["roles","app","disp"].forEach(i=>$(i).hidden=i!==w);
+async function rtInit(){
+  if(rt.db) return true; if(!fbConfigured) return false;
+  try{
+    firebase.initializeApp(firebaseConfig);
+    rt.uid=(await firebase.auth().signInAnonymously()).user.uid; rt.db=firebase.database();
+    rt.db.ref(".info/serverTimeOffset").on("value",s=>{ rt.offset=s.val()||0; });
+    rt.db.ref(".info/connected").on("value",s=>{ rt.online=!!s.val(); onConn(); });
+    return true;
+  }catch(_){ return false; }
+}
+function onConn(){
+  if(!rt.sid||!rt.ref) return;
+  if(rt.online){
+    const f=rt.ref.child(rt.role+"Disconnected"); f.onDisconnect().set(true).then(()=>f.set(false)).catch(()=>{});
+    if(rt.state==="DISCONNECTED") setState(rt.role==="display"&&shown.updatedAt?"DISPLAYING":"CONNECTED");
+    scheduleSync(true); // latest local state wins after reconnect
+  }else if(!["EXPIRED","SESSION_EXPIRED","IDLE","ERROR"].includes(rt.state)) setState("DISCONNECTED");
+}
+setInterval(()=>{ if(rt.ref&&rt.online&&!document.hidden) rt.ref.update({lastActive:TS(),[rt.role+"Beat"]:TS()}).catch(()=>{}); },BEAT_MS);
+function expire(){
+  const r=rt.role;
+  if(rt.ref){ try{ rt.ref.off(); }catch(_){} if(r==="display") rt.ref.remove().catch(()=>{}); }
+  sessionStorage.removeItem("qrt-sess"); sessionStorage.removeItem("qrt-last"); rt.sid=null; rt.ref=null; shown.updatedAt=0;
+  if(r==="display"){ setState("EXPIRED"); $("dshow").hidden=$("dpair").hidden=true; $("dstart").hidden=false; $("dmsg").textContent="Phiên đã hết hạn. Hãy tạo phiên mới."; }
+  else { setState("SESSION_EXPIRED"); $("cmsg").textContent="Phiên đã hết hạn. Hãy quét lại mã hoặc nhập mã mới."; $("cjoin").hidden=false; }
+}
+
+// ---------- Controller (iPhone) ----------
+let syncT, pend=null;
+function scheduleSync(now){
+  clearTimeout(syncT);
+  if(rt.role!=="controller"||!rt.ref) return;
+  syncT=setTimeout(pushState, now?0:SYNC_DEBOUNCE_MS); // local UI is never debounced; only the remote write
+}
+async function pushState(){
+  const b=state.bank; if(!lastQR||!b||!rt.ref) return; // only complete, valid states are sent
+  const upd=Math.max(Date.now(),rt.sent+1); rt.sent=upd;
+  const pay={bankId:b.id,bankName:b.name,bankCode:b.code,bankBin:b.bin,accountNo:state.accountNo,accountName:state.accountName.trim(),addInfo:lastQR.info,updatedAt:upd};
+  if(lastQR.amount) pay.amount=lastQR.amount;
+  rt.inflight++; setState("SYNCING");
+  try{ await rt.ref.update({payment:pay,lastActive:TS()}); rt.lastSync=new Date(); }catch(_){ rt.inflight--; setState("ERROR"); return; }
+  if(--rt.inflight===0 && rt.state==="SYNCING") setState(rt.online?"CONNECTED":"DISCONNECTED");
+}
+async function ctlConnect(sid,token,replace,restore){
+  rt.role="controller"; setState("CONNECTING"); $("cmsg").textContent=""; $("creplace").hidden=true;
+  if(!await rtInit()){ setState("ERROR"); $("cmsg").textContent=fbConfigured?"Không thể kết nối. Hãy kiểm tra Internet.":"Chưa cấu hình Firebase. Bạn vẫn có thể dùng ứng dụng cục bộ."; return; }
+  const ref=rt.db.ref("sessions/"+sid);
+  try{ const up={controllerUid:rt.uid,claim:token,lastActive:TS(),controllerDisconnected:false}; if(replace) up.replaceReq=true; await ref.update(up); }
+  catch(_){ setState("ERROR"); $("cmsg").textContent="Phiên này đã có thiết bị điều khiển hoặc mã không hợp lệ."; pend={sid,token}; $("creplace").hidden=false; return; }
+  Object.assign(rt,{sid,token,ref}); saveSess(); $("cjoin").hidden=true; $("csess").textContent="Phiên: "+sid;
+  setState("CONNECTED"); toast("✓ Đã kết nối với màn hình Android");
+  ref.on("value",s=>{
+    const v=s.val(); if(!v||Date.now()+rt.offset-(v.lastActive||0)>SESSION_TTL_MS) return expire();
+    if(v.controllerUid&&v.controllerUid!==rt.uid){ ref.off(); sessionStorage.removeItem("qrt-sess"); rt.sid=null; rt.ref=null; setState("DISCONNECTED"); $("cmsg").textContent="Thiết bị điều khiển khác đã thay thế."; $("cjoin").hidden=false; }
+  },()=>expire());
+  onConn();
+  try{
+    const rp=(await ref.child("payment").once("value")).val();
+    if(rp&&parsePayment(rp)&&(restore||await ask("Màn hình Android đang có thông tin thanh toán.","",false,"","Tải thông tin hiện tại","Ghi đè bằng thông tin trên iPhone",true)))
+      loadInto({bankBin:rp.bankBin,accountNo:rp.accountNo,accountName:rp.accountName,amount:rp.amount,addInfo:rp.addInfo});
+    else scheduleSync(true);
+  }catch(_){}
+}
+function startController(sid,token,restore){ rt.role="controller"; show("app"); update(); renderLists(); if(sid) ctlConnect(sid,token,false,restore); }
+
+// ---------- Display (Android) ----------
+const shown = {updatedAt:0}; let fadeTok=0, wl=null;
+async function wake(){ try{ if(navigator.wakeLock&&!wl){ wl=await navigator.wakeLock.request("screen"); wl.addEventListener("release",()=>{ wl=null; }); } }catch(_){} }
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden&&rt.role==="display") wake(); });
+/** Validates a synced payment with the same rules as the controller; returns null if unusable. */
+function parsePayment(p){
+  if(!p||typeof p!=="object") return null;
+  const bin=String(p.bankBin||""), bank=bankByBin(bin)||(/^\d{6}$/.test(bin)?{id:String(p.bankId||""),name:String(p.bankName||bin),code:String(p.bankCode||""),bin}:null);
+  const accountNo=String(p.accountNo||""), amount=p.amount==null?null:Number(p.amount), info=normalizeVietnameseText(String(p.addInfo||""));
+  const v=validateVietQRData({accountNo,amountText:amount==null?"":String(amount),addInfo:info});
+  if(!bank||!/^\d{6,19}$/.test(accountNo)||Object.keys(v.errors).length) return null;
+  return {bank,accountNo,accountName:String(p.accountName||"").slice(0,80),amount,info};
+}
+function onPayment(raw){
+  const ts=Number(raw&&raw.updatedAt)||0;
+  if(ts&&ts<shown.updatedAt) return; // stale update: ignore
+  const p=parsePayment(raw);
+  $("dpair").hidden=$("dstart").hidden=true; $("dshow").hidden=false;
+  if(!p){ $("derr").hidden=false; if(!shown.updatedAt) $("dq").innerHTML="<p>Không thể tạo mã QR<br>Vui lòng kiểm tra thông tin thanh toán</p>"; return; } // keep last valid QR
+  $("derr").hidden=true; shown.updatedAt=ts||1;
+  const payload=buildVietQRPayload({bank:p.bank,accountNo:p.accountNo,amount:p.amount,addInfo:p.info});
+  const q=encodeQR(payload), tok=++fadeTok, box=$("dq");
+  box.style.opacity=0; setTimeout(()=>{ if(tok===fadeTok){ box.innerHTML=qrSVG(q); box.style.opacity=1; } },120);
+  $("dbank").textContent=p.bank.name; $("dacc").textContent=p.accountNo; $("dname").textContent=p.accountName;
+  $("damt").textContent=p.amount?fmtAmount(String(p.amount))+"đ":""; $("dinfo").textContent=p.info;
+  if(P.get("dev")==="1"){ $("ddev").hidden=false; $("ddev").textContent=`SESSION: ${rt.sid}\nSTATE: ${rt.state}\nBIN: ${p.bank.bin}\nQR v${q.version} EC M CRC ${payload.slice(-4)}\n${payload}`; }
+  try{ sessionStorage.setItem("qrt-last",JSON.stringify(raw)); }catch(_){}
+  if(rt.state!=="DISCONNECTED") setState("DISPLAYING");
+}
+function showPairing(sid,token){
+  const url=`${location.origin}${location.pathname}?role=controller&session=${sid}&k=${token}`;
+  $("dstart").hidden=true; $("dshow").hidden=true; $("dpair").hidden=false;
+  $("dcode").textContent=(sid+token).replace(/(.{4})(?!$)/g,"$1-"); $("pq").innerHTML=qrSVG(encodeQR(url)); $("dpm").textContent="Đang chờ iPhone kết nối...";
+}
+function onSession(s){
+  if(!s||Date.now()+rt.offset-(s.lastActive||0)>SESSION_TTL_MS) return expire();
+  if(!shown.updatedAt) $("dpm").textContent=s.controllerUid?"✓ iPhone đã kết nối":"Đang chờ iPhone kết nối...";
+  if(s.controllerUid&&rt.state==="WAITING_FOR_CONTROLLER") setState("CONNECTED");
+  if(s.payment) onPayment(s.payment);
+}
+async function startDisplay(restore){
+  rt.role="display"; show("disp"); $("dstart").hidden=!!restore; $("dpair").hidden=$("dshow").hidden=true; $("dmsg").textContent=""; wake();
+  if(restore){
+    try{ const l=JSON.parse(sessionStorage.getItem("qrt-last")); if(l) onPayment(l); }catch(_){}
+    if(!shown.updatedAt) showPairing(restore.sid,restore.token);
+  }
+  if(!await rtInit()){ $("dmsg").textContent=fbConfigured?"Không thể kết nối. Hãy kiểm tra Internet.":"Chưa cấu hình Firebase (xem README.md)."; setState(restore?"DISCONNECTED":"ERROR"); return; }
+  let {sid,token}=restore||{};
+  if(!restore){
+    sid=rid(8); token=rid(8);
+    try{ await rt.db.ref("sessions/"+sid).set({displayUid:rt.uid,joinToken:token,createdAt:TS(),lastActive:TS()}); }
+    catch(_){ $("dmsg").textContent="Không thể tạo phiên. Kiểm tra Firebase rules."; setState("ERROR"); return; }
+    shown.updatedAt=0; sessionStorage.removeItem("qrt-last"); showPairing(sid,token);
+  }
+  Object.assign(rt,{sid,token,ref:rt.db.ref("sessions/"+sid)}); saveSess();
+  setState(shown.updatedAt?"DISPLAYING":"WAITING_FOR_CONTROLLER");
+  rt.ref.on("value",s=>onSession(s.val()),()=>expire()); onConn();
+}
+
+// ---------- Wiring + routing ----------
+const P = new URLSearchParams(location.search);
+let saved=null; try{ saved=JSON.parse(sessionStorage.getItem("qrt-sess")); }catch(_){}
+$("r-ctl").onclick=()=>{ history.replaceState(null,"","?role=controller"); startController(); };
+$("r-dsp").onclick=()=>{ history.replaceState(null,"","?role=display"); startDisplay(null); };
+$("dnew").onclick=$("dnew2").onclick=()=>{ if(rt.ref){ try{ rt.ref.off(); rt.ref.remove().catch(()=>{}); }catch(_){} } rt.sid=null; rt.ref=null; startDisplay(null); };
+$("dfs").onclick=()=>{ const e=document.documentElement; if(e.requestFullscreen) e.requestFullscreen().catch(()=>{ $("dhint").hidden=false; }); else $("dhint").hidden=false; };
+$("cgo").onclick=()=>{
+  const c=$("code").value.toUpperCase().replace(/[^A-Z0-9]/g,"");
+  if(c.length!==16){ $("cmsg").textContent="Mã kết nối không hợp lệ."; return; }
+  ctlConnect(c.slice(0,8),c.slice(8),false,false);
+};
+$("creplace").onclick=()=>pend&&ctlConnect(pend.sid,pend.token,true,false);
+if(!fbConfigured) $("rcfg").textContent="Chưa cấu hình Firebase: chỉ dùng được chế độ cục bộ (xem README.md).";
+const role=P.get("role")||(saved&&saved.role);
+if(role==="display") startDisplay(saved&&saved.role==="display"?saved:null);
+else if(role==="controller"){
+  const sid=(P.get("session")||"").toUpperCase(), k=(P.get("k")||"").toUpperCase();
+  if(sid&&k){ history.replaceState(null,"","?role=controller"); startController(sid,k,false); }
+  else if(saved&&saved.role==="controller") startController(saved.sid,saved.token,true);
+  else startController();
+}else show("roles");
+</script>
+</body>
+</html>
