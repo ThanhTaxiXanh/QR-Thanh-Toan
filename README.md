@@ -1,4 +1,4 @@
-# QR Thanh Toán — iPhone controller + Android display
+# QR Thanh Toán — Device controller + Device display
 
 1. Create a Firebase project (console.firebase.google.com) and add a Web app.
 2. Build > Realtime Database > Create database.
